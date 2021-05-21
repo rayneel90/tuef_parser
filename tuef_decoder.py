@@ -3,7 +3,7 @@
 import argparse  # create command-line tool
 from getpass import getpass  # for password input without showing on console
 from pymongo import MongoClient, errors # Mongodb API
-import pandas as pd
+import pandas as pd 
 from datetime import datetime
 import re
 from time import time
@@ -87,7 +87,7 @@ def str_breaker(string):
 keymap = db['keymap'].find_one()
 
 pattern = re.compile(
-    "(PN03N01|ID03I01|PT03T01|EC03C01|EM03E01|SC10CIBILTUSCR|PA03A01|"
+    "(PN03N01|ID03I01|PT03T01|EC03C01|EM03E01|SC10CIBILTUSC|PA03A01|"
     "TL04T001|IQ04I001|DR03D01)"
 )  # Create the pattern to break the tuef string into segments
 
@@ -278,12 +278,12 @@ while 1:
             enq.columns = [keymap['IQ'][key] for key in enq.columns]
             enq['date_of_enquiry'] = pd.to_datetime(enq['date_of_enquiry'],
                                                     format='%d%m%Y')
-            enq['enquiry_purpose'] = [keymap['account_type'][i] for i in
-                                      enq['enquiry_purpose']]
             enq['enquiry_purpose_acct_nm'] = [keymap['account_type'][i]['Name'] for i in
                                    enq['enquiry_purpose']]
             enq['enquiry_purpose_acct_typ'] = [keymap['account_type'][i]['loan_type'] for i in
                                    enq['enquiry_purpose']]
+            enq['enquiry_purpose'] = [keymap['account_type'][i] for i in
+                                      enq['enquiry_purpose']]
             header['enquiries'] = enq.T.apply(
                 lambda x: x.dropna().to_dict()).tolist()
     except Exception as e:

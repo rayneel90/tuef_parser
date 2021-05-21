@@ -27,9 +27,9 @@ prsr.add_argument('--col',
                        "Column count shall start from 0. MUST BE PROVIDED IF "
                        "INPUT FILE CONTAINS MULTIPLE COLUMNS OR COLUMN HEADER"
                   )
-prsr.add_argument('--delim', default=',',
+prsr.add_argument('--delim', default='\t',
                   help="Column delimiter. Meaningful only for flat-files. "
-                       "Default is ','")
+                       "Default is '\\t'")
 prsr.add_argument('--chunk', default=100, type=int,
                   help="number of strings uploaded and processed in a chunk."
                        "Big chunksize boosts speed, but may overflow memory."
@@ -40,15 +40,23 @@ prsr.add_argument('--dbstring', '-D',
                        "format 'mongodb://<ip>:<port>/<DB name>'")
 prsr.add_argument('--username', '-U', help="username for mongodb",
                   dest='uname')
-prsr.add_argument('--collection', '-C', default='raw_tuef',
+prsr.add_argument('--temp-coll', '-T', default='raw_tuef',
                   help="Collection name where data will be uploaded. Default "
                        "is 'raw_tuef'")
+prsr.add_argument('--final-coll', '-F', default='tuef',
+                  help="Collection name where data will be uploaded. Default "
+                       "is 'tuef'")
+prsr.add_argument('--drop-temp', action='store_true',
+                  help="flag to drop the collection provided by --temp-coll")
+prsr.add_argument('--drop-final', action='store_true',
+                  help="flag to drop the collection provided by --final-coll")
+
 
 
 args = prsr.parse_args()
 
 # -------------------------Checks for input--------------------------------- #
-if args.path.split(".")[1].lower() not in ['xlsx', 'xls', 'csv', 'txt']:
+if args.path.split(".")[-1].lower() not in ['xlsx', 'xls', 'csv', 'txt']:
     raise Exception('Invalid file extension. valid file types are: xlsx,'
                     'xls, csv and txt')
 ##############################################################################
@@ -86,6 +94,15 @@ else:
         raise Exception("col must be mentioned if input table contains multiple columns")
     tuef = df.iloc[:, 0].unique().tolist()
 ##############################################################################
+#                    Drop collections                                        #
+##############################################################################
+if args.drop_temp:
+    db[args.temp_coll].drop()
+
+if args.drop_final:
+    db[args.final_coll].drop()
+
+##############################################################################
 #                    Clean Tuef Data                                         #
 ##############################################################################
 
@@ -93,12 +110,14 @@ else:
 def clean(txt):
     bgn = txt.find("TUEF")
     end = txt.find('0102**')+5+1
-    txt = txt[bgn:end]
-    length = int(txt[-17:].replace("ES07", "")[:7])
-    return {
-        'string': txt,
+    try:
+        length = int(txt[end-17:].replace("ES07", "")[:7])
+    except:
+        length = -5
+    return ({
+        'string': txt[bgn: end],
         'valid': len(txt[bgn: end]) == length
-    }
+    })
 ##############################################################################
 #                            Push files to temp storage                      #
 ##############################################################################
@@ -108,7 +127,7 @@ start = time()
 print('Upload of raw string commenced:\n')
 step = args.chunk
 for idx in range(0, len(tuef), step):
-    db[args.collection].insert_many([
+    db[args.temp_coll].insert_many([
         clean(rec) for rec in tuef[idx:idx+step]
     ])
     perc = round(min((idx+step), len(tuef)) / len(tuef) * 100)
@@ -119,6 +138,6 @@ for idx in range(0, len(tuef), step):
           end='\r')
 
 print("\n\n\rUpload of raw string finished. Strings are stored in collection"
-      " '{}'".format(args.collection))
+      " '{}'".format(args.temp_coll))
 
-# os.system('python tuef_decoder.py')
+os.system('./tuef_decoder.py -I {} -O {}'.format(args.temp_coll, args.final_coll))
